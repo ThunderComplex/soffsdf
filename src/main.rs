@@ -7,7 +7,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowId};
 
-use crate::renderer::{Color, Renderer};
+use crate::renderer::Renderer;
 use crate::window::RawWindowBitmap;
 
 #[derive(Default)]

@@ -38,8 +38,6 @@ impl From<Color> for u32 {
 struct Camera {
     projection: PerspectiveFov<f32>,
     position: Vec3f,
-    forward: Vec3f,
-    up: Vec3f,
     view_matrix: Matrix4<f32>,
 }
 
@@ -66,8 +64,6 @@ impl Camera {
         Self {
             projection,
             position,
-            forward,
-            up,
             view_matrix,
         }
     }
@@ -90,17 +86,11 @@ impl Sphere {
         let discriminant = b * b - a * c;
 
         if discriminant > 0.0 {
-            let mut tmp = (-b - discriminant.sqrt()) / a;
+            let tmp = (-b - discriminant.sqrt()) / a;
 
             if tmp < 10000f32 && tmp > 0.00001 {
                 return Some(origin + tmp * ray);
             }
-
-            // tmp = (-b + discriminant.sqrt()) / a;
-
-            // if tmp < 10000f32 && tmp > 0.00001 {
-            //     return Some(origin + tmp * ray);
-            // }
         }
 
         None
