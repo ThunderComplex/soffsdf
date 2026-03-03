@@ -1,9 +1,10 @@
 use cgmath::{Matrix4, Point3, Vector4, prelude::*};
-use cgmath::{PerspectiveFov, Vector3};
+use cgmath::{PerspectiveFov, Vector2, Vector3};
 
 use crate::window::RawWindowBitmap;
 
 type Vec3f = Vector3<f32>;
+type Vec2f = Vector2<f32>;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Color {
@@ -11,6 +12,22 @@ pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+
+struct Camera {
+    projection: PerspectiveFov<f32>,
+    position: Vec3f,
+    view_matrix: Matrix4<f32>,
+}
+
+struct Sphere {
+    position: Vec3f,
+    size: f32,
+}
+
+pub struct Renderer {
+    camera: Camera,
+    spheres: Vec<Sphere>,
 }
 
 impl From<u32> for Color {
@@ -33,22 +50,6 @@ impl From<Color> for u32 {
         acc += value.b as u32;
         acc
     }
-}
-
-struct Camera {
-    projection: PerspectiveFov<f32>,
-    position: Vec3f,
-    view_matrix: Matrix4<f32>,
-}
-
-struct Sphere {
-    position: Vec3f,
-    size: f32,
-}
-
-pub struct Renderer {
-    camera: Camera,
-    spheres: Vec<Sphere>,
 }
 
 impl Camera {
@@ -97,10 +98,96 @@ impl Sphere {
     }
 }
 
+fn vec2_abs(input: &Vec2f) -> Vec2f {
+    Vec2f {
+        x: input.x.abs(),
+        y: input.y.abs(),
+    }
+}
+
+fn vec3_abs(input: &Vec3f) -> Vec3f {
+    Vec3f {
+        x: input.x.abs(),
+        y: input.y.abs(),
+        z: input.z.abs(),
+    }
+}
+
+fn vec3_max(a: Vec3f, b: f32) -> Vec3f {
+    Vec3f {
+        x: a.x.max(b),
+        y: a.y.max(b),
+        z: a.z.max(b),
+    }
+}
+
+fn sdf_sphere(position: Vec3f, size: f32) -> f32 {
+    return position.magnitude() - size;
+}
+
+fn sdf_box(position: Vec3f, bounds: Vec3f) -> f32 {
+    let abs_pos = vec3_abs(&position);
+    let d = abs_pos - bounds;
+    let d_max = vec3_max(d, 0.0).magnitude();
+    d.x.max(d.y.max(d.z)).min(0.0) + d_max
+}
+
+#[inline]
+fn op_u(a: Vec2f, b: Vec2f) -> Vec2f {
+    if a.x < b.x {
+        return a;
+    }
+
+    b
+}
+
+fn sdf_scene(position: Vec3f) -> Vec2f {
+    let mut res = Vec2f {
+        x: position.y,
+        y: 0.0,
+    };
+
+    let sphere_position = Vec3f {
+        x: 0.0,
+        y: 0.0,
+        z: 8.0,
+    };
+    let sphere = sdf_sphere(position + sphere_position, 2.0);
+    res = op_u(res, Vec2f { x: sphere, y: 15.0 });
+
+    res
+}
+
+fn sdf_raycast(origin: Vec3f, direction: Vec3f) -> Vec2f {
+    let mut res = Vec2f { x: -1.0, y: -1.0 };
+
+    let tmin = 1.0f32;
+    let tmax = 10.0f32;
+
+    let mut t = tmin;
+
+    for _ in 0..50 {
+        if t >= tmax {
+            break;
+        }
+
+        let h = sdf_scene(origin + direction * t);
+
+        if vec2_abs(&h).x < 0.0001 * t {
+            res = Vec2f { x: t, y: h.y };
+            break;
+        }
+
+        t += h.x;
+    }
+
+    res
+}
+
 impl Renderer {
     pub fn new() -> Self {
         let camera = Camera::new(
-            Vec3f::new(0.0, 0.0, 0.0),
+            Vec3f::new(0.0, 1.0, 0.0),
             Vec3f::new(0.0, 0.0, -1.0),
             Vec3f::new(0.0, 1.0, 0.0),
         );
@@ -129,19 +216,23 @@ impl Renderer {
                 let ray_world = inv_view * eye_ray;
                 let ray_dir = ray_world.truncate().normalize();
 
-                for sphere in self.spheres.iter() {
-                    if let Some(intersection) = sphere.intersect(self.camera.position, ray_dir) {
-                        let hit_normal = sphere.position - intersection;
-                        let dot = hit_normal.normalize().dot(ray_dir);
-                        let color = Color {
-                            a: 255,
-                            r: (((dot + 1.0) * 0.5) * 255.0) as u8,
-                            g: (((dot + 1.0) * 0.5) * 255.0) as u8,
-                            b: (((dot + 1.0) * 0.5) * 255.0) as u8,
-                        };
-                        bitmap.set_pixel(x as usize, y as usize, color.into());
+                let raycast = sdf_raycast(self.camera.position, ray_dir);
+                let mut color: u32 = 0x00000000;
+
+                let t = raycast.x;
+                let m = raycast.y;
+
+                if m > -0.5 {
+                    color = Color {
+                        a: 0,
+                        r: ((m * 2f32) + m) as u8,
+                        g: 0,
+                        b: 0,
                     }
+                    .into();
                 }
+
+                bitmap.set_pixel(x as usize, y as usize, color.into());
             }
         }
     }
