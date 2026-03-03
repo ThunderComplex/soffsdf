@@ -37,7 +37,7 @@ impl RawWindowBitmap {
                 bmiHeader: BITMAPINFOHEADER {
                     biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
                     biWidth: width,
-                    biHeight: height, // invert?
+                    biHeight: -height,
                     biPlanes: 1,
                     biBitCount: 32,
                     biCompression: 0u32,
@@ -73,9 +73,9 @@ impl RawWindowBitmap {
         }
     }
 
-    fn set_pixel(&mut self, x: isize, y: isize, color: u32) {
+    fn set_pixel(&mut self, x: usize, y: usize, color: u32) {
         unsafe {
-            let data = self.pixel_data.unwrap().offset(x * y) as *mut u32;
+            let data = self.pixel_data.unwrap().add(y * 4 * self.width as usize + x * 4) as *mut u32;
             *data = color;
         }
     }
@@ -137,7 +137,8 @@ impl ApplicationHandler for App {
         let raw_window_bitmap: Option<RawWindowBitmap> = match handle {
             RawWindowHandle::Win32(w32_handle) => {
                 let mut bitmap: RawWindowBitmap = w32_handle.hwnd.get().into();
-                let _ = bitmap.create_bitmap(200, 200);
+                let size = window.inner_size();
+                let _ = bitmap.create_bitmap(size.width as i32, size.height as i32);
                 Some(bitmap)
             }
             _ => None,
@@ -155,7 +156,9 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(bitmap) = &mut self.raw_window_bitmap {
-                    bitmap.set_pixel(100, 100, 0x00FF0000);
+                    for i in 0..100 {
+                        bitmap.set_pixel(i, i, 0x00FF0000);
+                    }
                     bitmap.present();
                 }
 
