@@ -95,7 +95,7 @@ impl RawWindowBitmap {
 impl From<isize> for RawWindowBitmap {
     fn from(value: isize) -> Self {
         unsafe {
-            let hwnd = windows::Win32::Foundation::HWND(value as *mut c_void);
+            let hwnd = HWND(value as *mut c_void);
             let window_dc = GetDC(Some(hwnd));
             let memory_dc = CreateCompatibleDC(Some(window_dc));
 
