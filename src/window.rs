@@ -14,8 +14,8 @@ pub struct RawWindowBitmap {
     bitmap_info: Option<BITMAPINFO>,
     bitmap: Option<windows::core::Result<HBITMAP>>,
     pixel_data: Option<*mut c_void>,
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
 }
 
 impl RawWindowBitmap {
@@ -62,6 +62,10 @@ impl RawWindowBitmap {
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, color: u32) {
+        if x >= self.width as usize || y >= self.height as usize {
+            return;
+        }
+
         unsafe {
             let data = self
                 .pixel_data

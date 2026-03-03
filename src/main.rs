@@ -7,12 +7,14 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{Window, WindowId};
 
+use crate::renderer::{Color, Renderer};
 use crate::window::RawWindowBitmap;
 
 #[derive(Default)]
 struct App {
     window: Option<Window>,
     raw_window_bitmap: Option<RawWindowBitmap>,
+    renderer: Option<Renderer>,
 }
 
 impl ApplicationHandler for App {
@@ -32,6 +34,8 @@ impl ApplicationHandler for App {
             _ => None,
         };
 
+        self.renderer = Some(Renderer::new());
+
         self.window = Some(window);
         self.raw_window_bitmap = raw_window_bitmap;
     }
@@ -41,11 +45,15 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
+            WindowEvent::Resized(size) => {
+                if let Some(bitmap) = &mut self.raw_window_bitmap {
+                    let _ = bitmap.create_bitmap(size.width as i32, size.height as i32);
+                    self.renderer.as_mut().unwrap().resize(bitmap);
+                }
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(bitmap) = &mut self.raw_window_bitmap {
-                    for i in 0..100 {
-                        bitmap.set_pixel(i, i, 0x00FF0000);
-                    }
+                    self.renderer.as_mut().unwrap().render_scene(bitmap);
                     bitmap.present();
                 }
 
