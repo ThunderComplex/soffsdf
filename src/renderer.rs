@@ -17,6 +17,8 @@ pub struct Color {
 struct Camera {
     projection: PerspectiveFov<f32>,
     position: Vec3f,
+    forward: Vec3f,
+    up: Vec3f,
     view_matrix: Matrix4<f32>,
 }
 
@@ -28,6 +30,7 @@ struct Sphere {
 pub struct Renderer {
     camera: Camera,
     spheres: Vec<Sphere>,
+    frame: usize,
 }
 
 impl From<u32> for Color {
@@ -65,12 +68,20 @@ impl Camera {
         Self {
             projection,
             position,
+            forward,
+            up,
             view_matrix,
         }
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
         self.projection.aspect = width as f32 / height as f32;
+    }
+
+    pub fn set_position(&mut self, position: Vec3f, forward: Vec3f, up: Vec3f) {
+        let view_matrix = Matrix4::look_to_rh(Point3::from_vec(position), forward, up);
+        self.position = position;
+        self.view_matrix = view_matrix;
     }
 }
 
@@ -149,11 +160,24 @@ fn sdf_scene(position: Vec3f) -> Vec2f {
 
     let sphere_position = Vec3f {
         x: 0.0,
-        y: 0.0,
+        y: -5.0,
         z: 8.0,
     };
     let sphere = sdf_sphere(position + sphere_position, 2.0);
     res = op_u(res, Vec2f { x: sphere, y: 15.0 });
+
+    let box_position = Vec3f {
+        x: 1.0,
+        y: -4.0,
+        z: 6.0,
+    };
+    let box_bounds = Vec3f {
+        x: 0.2,
+        y: 0.2,
+        z: 0.8,
+    };
+    let box_sdf = sdf_box(position + box_position, box_bounds);
+    res = op_u(res, Vec2f { x: box_sdf, y: 3.0 });
 
     res
 }
@@ -187,19 +211,31 @@ fn sdf_raycast(origin: Vec3f, direction: Vec3f) -> Vec2f {
 impl Renderer {
     pub fn new() -> Self {
         let camera = Camera::new(
-            Vec3f::new(0.0, 1.0, 0.0),
+            Vec3f::new(0.0, 3.0, 0.0),
             Vec3f::new(0.0, 0.0, -1.0),
             Vec3f::new(0.0, 1.0, 0.0),
         );
         let spheres = vec![Sphere::new(Vec3f::new(10.0, 0.0, -15.0), 2f32)];
-        Self { camera, spheres }
+        Self {
+            camera,
+            spheres,
+            frame: 0,
+        }
     }
 
     pub fn resize(&mut self, bitmap: &mut RawWindowBitmap) {
         self.camera.resize(bitmap.width, bitmap.height);
     }
 
-    pub fn render_scene(&self, bitmap: &mut RawWindowBitmap) {
+    pub fn render_scene(&mut self, bitmap: &mut RawWindowBitmap) {
+        self.frame += 1;
+
+        self.camera.set_position(
+            self.camera.position + Vec3f::unit_y() * (self.frame as f32 * 0.15).sin() * 0.2f32,
+            self.camera.forward + Vec3f::unit_x() * (self.frame as f32 * 0.25).sin() * 0.5f32,
+            self.camera.up,
+        );
+
         let projmat: Matrix4<f32> = self.camera.projection.into();
         let inv_proj = projmat.invert().unwrap();
         let inv_view = self.camera.view_matrix.invert().unwrap();
@@ -225,9 +261,9 @@ impl Renderer {
                 if m > -0.5 {
                     color = Color {
                         a: 0,
-                        r: ((m * 2f32) + m) as u8,
-                        g: 0,
-                        b: 0,
+                        r: 2 * ((m.abs() * 2.0) as u8),
+                        g: 4 * ((m.abs() * 2.0) as u8),
+                        b: 6 * ((m.abs() * 2.0) as u8),
                     }
                     .into();
                 }
